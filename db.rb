@@ -185,6 +185,8 @@ loop do
   
   # build teams for current week
   ensure_teams_for_week(current_week)
+    
+  fetch_teams(current_week) unless ENV['force_fetch_teams'].nil?
 
   players_playing_this_week = get_players_to_update(current_week)
 
@@ -194,5 +196,6 @@ loop do
   update_scores(current_week, players_playing_this_week)
 
   puts "Now sleeping for 2 minutes..."
+  $stdout.flush
   sleep(2.minutes)
 end
