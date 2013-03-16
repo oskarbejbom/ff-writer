@@ -174,7 +174,7 @@ MongoMapper.connection = Mongo::Connection.new(host, port)
 MongoMapper.database = db_name
 MongoMapper.database.authenticate(db_name, pw)
 
-current_week = ENV['CURRENT_WEEK'].to_i
+current_week = 30
 
 loop do
 
