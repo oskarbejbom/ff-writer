@@ -154,7 +154,7 @@ def update_scores(week, player_ids)
 
     if( current_player.details != api_player["event_explain"] )
       
-      player_changed = determine_if_played_changed(current_player.details, api_player["event_explain"])
+      player_changed = determine_if_player_changed(current_player.details, api_player["event_explain"])
       
       current_player.details = api_player["event_explain"]
       current_player.total_score = api_player["event_points"]
