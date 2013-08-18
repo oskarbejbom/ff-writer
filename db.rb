@@ -42,20 +42,20 @@ class GlobalPlayer
   key :details, Array
 end
 
-def ensure_teams_for_week(week)
+def ensure_teams(week)
   round = Round.find_one(:week => week)
   if( round.nil? )
     teams = Array.new
-    teams << Team.new({:team_id => 75824, :name => "Oskar"})
-    teams << Team.new({:team_id => 1753920, :name => "Anders"}) 
-    teams << Team.new({:team_id => 3271, :name => "Magnus"})
-    teams << Team.new({:team_id => 37951, :name => "Robert"})
-    teams << Team.new({:team_id => 826402, :name => "Martin"})
+    teams << Team.new({:team_id => 16665, :name => "Oskar"})
+    teams << Team.new({:team_id => 55465, :name => "Anders"}) 
+    teams << Team.new({:team_id => 1113, :name => "Magnus"})
+    teams << Team.new({:team_id => 413689, :name => "Robert"})
+    teams << Team.new({:team_id => 985532, :name => "Martin"})
     Round.create(:week => week, :teams => teams)
     fetch_teams(week)
     puts "Built teams for round #{week}"
   else
-    puts "No need to fetch teams for round #{week}, already got data"
+    puts "No need to build teams for round #{week}, already got team data"
   end
 end
 
@@ -90,7 +90,7 @@ def fetch_teams(week)
   end
 end
 
-def get_players_to_update(week)
+def get_players(week)
   player_ids = Array.new
 
   Round.find_by_week(week).teams.each do |team|
@@ -103,7 +103,7 @@ end
 def ensure_global_players(week, player_ids)
   player_ids.each { 
     |id| 
-    if( GlobalPlayer.find_one(:player_id => id, :week => week).nil? )
+    if( GlobalPlayer.where( :player_id => id, :week => week ).count == 0 )
       puts "Creating global player #{id} for week #{week}"
       pl = JSON.parse( RestClient.get "http://fantasy.premierleague.com/web/api/elements/#{id}/" )
       GlobalPlayer.create( :player_id => id,
@@ -121,10 +121,28 @@ def ensure_global_players(week, player_ids)
   }
 end
 
+def determine_if_player_changed(current, new)
+  real_change = false
+
+  if( new.length != current.length )
+    real_change = true
+  else
+    leng = new.length
+    Array(0..leng-1).each do |cnt|
+      if( new[cnt][2] != current[cnt][2] )
+        real_change = true
+        break
+      end
+    end
+  end
+
+  return real_change
+end
 
 def update_scores(week, player_ids)
+  puts "Updating scores..."
+
   player_ids.each do |player_id|
-    
     begin
       api_player = JSON.parse( RestClient.get "http://fantasy.premierleague.com/web/api/elements/#{player_id}/" )
     rescue => e
@@ -132,37 +150,33 @@ def update_scores(week, player_ids)
       next
     end
     
-    player = GlobalPlayer.find_one({:player_id => player_id, :week => week})
+    current_player = GlobalPlayer.where(:player_id => player_id, :week => week).first
 
-    if( player.details != api_player["event_explain"] )
-      real_change = false
-      if( api_player["event_explain"].length != player.details.length )
-        real_change = true
-      else
-        leng = api_player["event_explain"].length
-        Array(0..leng-1).each do |cnt|
-          if( api_player["event_explain"][cnt][2] != player.details[cnt][2] )
-            real_change = true
-            break
-          end
-        end
-      end
+    if( current_player.details != api_player["event_explain"] )
       
-      player.details = api_player["event_explain"]
-      player.total_score = api_player["event_points"]
-      player.updated = Time.new
+      player_changed = determine_if_played_changed(current_player.details, api_player["event_explain"])
+      
+      current_player.details = api_player["event_explain"]
+      current_player.total_score = api_player["event_points"]
+      current_player.updated = Time.new
 
-      if( real_change )
-        player.last_change = Time.new
-        puts "There was a real change for player #{player_id}!"
+      if( player_changed )
+        current_player.last_change = Time.new
+        puts "Player #{player_id} was changed"
       end
 
-      player.save
+      current_player.save
       puts "Updated player #{player_id}, score is now #{api_player["event_points"]}"
     end
 
   end
 end
+
+
+
+############ MAIN ENTRY POINT ###################
+
+$stdout.sync = true
 
 regex_match = /.*:\/\/(.*):(.*)@(.*):(.*)\//.match(ENV['MONGOLAB_URI'])
 host = regex_match[3]
@@ -174,28 +188,35 @@ MongoMapper.connection = Mongo::Connection.new(host, port)
 MongoMapper.database = db_name
 MongoMapper.database.authenticate(db_name, pw)
 
-current_week = 38
+current_week = ENV['CURRENT_WEEK'].to_i
 
 loop do
-
   puts "Fetching data at #{Time.new.inspect}"
 
   Round.ensure_index [[:week, 1]], :unique => true
   GlobalPlayer.ensure_index [[:player_id, 1]], :unique => true
   
   # build teams for current week
-  ensure_teams_for_week(current_week)
-    
+  ensure_teams(current_week)
+
+  # rebuild teams if force_fetch_teams is set
   fetch_teams(current_week) unless ENV['force_fetch_teams'].nil?
 
-  players_playing_this_week = get_players_to_update(current_week)
+  # get all players playing this week
+  players_playing_this_week = get_players(current_week)
 
+  # make sure we have saved all players playing this week for all teams
   ensure_global_players(current_week, players_playing_this_week)
 
-  puts "Updating scores..."
+  # update scores for all players playing this week
   update_scores(current_week, players_playing_this_week)
 
   puts "Now sleeping for 2 minutes..."
-  $stdout.flush
   sleep(2.minutes)
+
 end
+
+puts "Exiting..."
+
+############ PROGRAM ENDS ########################
+
