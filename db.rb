@@ -12,6 +12,21 @@ class Round
   include MongoMapper::Document
   key :week, Integer, :unique => true
   many :teams
+  many :fixtures
+end
+
+class Fixture
+  include MongoMapper::EmbeddedDocument
+  key :id, Integer
+  key :details, String
+  key :goals, Array
+  key :assists, Array
+  key :bps, Array
+  key :yellow_cards, Array
+  key :red_cards, Array
+  key :saves, Array
+  key :penalties_saved, Array
+  key :penalties_missed, Array
 end
 
 class Team
@@ -57,6 +72,70 @@ def ensure_teams(week)
   else
     puts "No need to build teams for round #{week}, already got team data"
   end
+end
+
+def update_match_results(week)
+  puts "Updating results for week #{week}..."
+  
+  round = Round.find_one(:week => week)
+  fixtures = Array.new
+  doc = Nokogiri::HTML(open("http://fantasy.premierleague.com/fixtures/#{week}/"))
+  items = doc.css("#ismFixtureTable tbody").css("tr").css(".clearfix").xpath("//a/@data-id")    
+  items.each do |fixture|
+    fixture_doc = Nokogiri::HTML(open("http://fantasy.premierleague.com/fixture/#{fixture.value}/"))
+    title = fixture_doc.css("#ismFixtureDetailTitle")
+
+    rows = fixture_doc.css(".ismFixtureDetailTable tr")
+
+    # Remove heading rows
+    rows.each { |r|       
+      if( r != nil && r.children != nil && r.children[0].name == "th" )
+        rows.delete(r)
+      end
+    }
+
+    goalscorers = rows.select { |player| player.children[4].text.gsub("  ", "").gsub("\n", "") != "0" }
+    goalscorers_array = goalscorers.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[4].text.gsub("  ", "").gsub("\n", "") + ")" }
+
+    assists = rows.select { |player| player.children[6].text.gsub("  ", "").gsub("\n", "") != "0" }
+    assists_array = assists.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[6].text.gsub("  ", "").gsub("\n", "") + ")" }
+
+    bps = rows.sort { |r1,r2| r2.children[28].text.gsub("  ", "").gsub("\n", "").to_i <=> r1.children[28].text.gsub("  ", "").gsub("\n", "").to_i }
+    bps_array = bps.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[28].text.gsub("  ", "").gsub("\n", "") + ")" }[0..4]
+
+    saves = rows.select { |player| player.children[22].text.gsub("  ", "").gsub("\n", "") != "0" }
+    saves_array = saves.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[22].text.gsub("  ", "").gsub("\n", "") + ")" }
+
+    saved_penalties = rows.select { |player| player.children[14].text.gsub("  ", "").gsub("\n", "") != "0" }
+    saved_penalties_array = saved_penalties.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[14].text.gsub("  ", "").gsub("\n", "") + ")" }
+
+    missed_penalties = rows.select { |player| player.children[16].text.gsub("  ", "").gsub("\n", "") != "0" }
+    missed_penalties_array = missed_penalties.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[16].text.gsub("  ", "").gsub("\n", "") + ")" }
+
+    yellow_cards = rows.select { |player| player.children[18].text.gsub("  ", "").gsub("\n", "") != "0" }
+    yellow_cards_array = yellow_cards.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") }
+
+    red_cards = rows.select { |player| player.children[20].text.gsub("  ", "").gsub("\n", "") != "0" }
+    red_cards_array = red_cards.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") }
+
+
+    fixtures << Fixture.new(
+                            :id => fixture.value,
+                            :details => title.first.text.gsub("  ","").gsub("\n"," "), 
+                            :goals => goalscorers_array, 
+                            :assists => assists_array,
+                            :bps => bps_array,
+                            :saves => saves_array,
+                            :penalties_saved => saved_penalties_array,
+                            :penalties_missed => missed_penalties_array,
+                            :yellow_cards => yellow_cards_array,
+                            :red_cards => red_cards_array
+                            ) 
+  end
+
+  round.fixtures = fixtures
+  round.save
+  puts "Updated results for week #{week}"
 end
 
 def fetch_teams(week)
@@ -140,7 +219,7 @@ def determine_if_player_changed(current, new)
 end
 
 def update_scores(week, player_ids)
-  puts "Updating scores..."
+  puts "Updating scores of players..."
 
   player_ids.each do |player_id|
     begin
@@ -171,6 +250,7 @@ def update_scores(week, player_ids)
 
   end
 end
+
 
 
 
@@ -210,6 +290,9 @@ loop do
 
   # update scores for all players playing this week
   update_scores(current_week, players_playing_this_week)
+
+  # update results
+  update_match_results(current_week)
 
   puts "Now sleeping for 2 minutes..."
   sleep(2.minutes)
