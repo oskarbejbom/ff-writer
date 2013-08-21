@@ -27,6 +27,7 @@ class Fixture
   key :saves, Array
   key :penalties_saved, Array
   key :penalties_missed, Array
+  key :own_goals, Array
 end
 
 class Team
@@ -118,6 +119,9 @@ def update_match_results(week)
     red_cards = rows.select { |player| player.children[20].text.gsub("  ", "").gsub("\n", "") != "0" }
     red_cards_array = red_cards.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") }
 
+    own_goals = rows.select { |player| player.children[12].text.gsub("  ", "").gsub("\n", "") != "0" }
+    own_goals_array = own_goals.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[12].text.gsub("  ", "").gsub("\n", "") + ")" }
+
 
     fixtures << Fixture.new(
                             :id => fixture.value,
@@ -129,7 +133,8 @@ def update_match_results(week)
                             :penalties_saved => saved_penalties_array,
                             :penalties_missed => missed_penalties_array,
                             :yellow_cards => yellow_cards_array,
-                            :red_cards => red_cards_array
+                            :red_cards => red_cards_array,
+                            :own_goals => own_goals_array
                             ) 
   end
 
