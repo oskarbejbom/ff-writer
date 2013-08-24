@@ -279,7 +279,7 @@ loop do
   puts "Fetching data at #{Time.new.inspect}"
 
   Round.ensure_index [[:week, 1]], :unique => true
-  GlobalPlayer.ensure_index [[:player_id, 1]], :unique => true
+  GlobalPlayer.ensure_index [[:player_id, 1],[:week, 1]], :unique => true
   
   # build teams for current week
   ensure_teams(current_week)
