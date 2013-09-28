@@ -102,7 +102,7 @@ def update_match_results(week)
     assists_array = assists.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[6].text.gsub("  ", "").gsub("\n", "") + ")" }
 
     bps = rows.sort { |r1,r2| r2.children[28].text.gsub("  ", "").gsub("\n", "").to_i <=> r1.children[28].text.gsub("  ", "").gsub("\n", "").to_i }
-    bps_array = bps.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[28].text.gsub("  ", "").gsub("\n", "") + ")" }[0..4]
+    bps_array = bps.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[28].text.gsub("  ", "").gsub("\n", "") + ")" }
 
     saves = rows.select { |player| player.children[22].text.gsub("  ", "").gsub("\n", "") != "0" }
     saves_array = saves.collect { |p| p.children[0].text.gsub("  ", "").gsub("\n", "") + " (" + p.children[22].text.gsub("  ", "").gsub("\n", "") + ")" }
