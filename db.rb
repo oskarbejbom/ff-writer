@@ -49,7 +49,7 @@ class GlobalPlayer
   include MongoMapper::Document
   key :player_id, Integer
   key :name, String
-  key :shirt, String
+  key :team_id, String
   key :position, String
   key :week, Integer
   key :updated, Time
@@ -193,7 +193,7 @@ def ensure_global_players(week, player_ids)
       GlobalPlayer.create( :player_id => id,
                            :name => pl["web_name"],
                            :team => pl["team_name"],
-                           :shirt => pl["shirt_image_url"],
+                           :team_id => pl["team_id"],
                            :position => pl["type_name"],
                            :week => week,
                            :updated => Time.new,
